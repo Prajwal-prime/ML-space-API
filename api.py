@@ -2,12 +2,16 @@ from flask import Flask, request, jsonify
 import requests
 from skyfield.api import load, wgs84
 from sgp4.api import Satrec
-from datetime import datetime, timezone
 
 app = Flask(__name__)
 
 # TLE Source
 TLE_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle"
+
+@app.route("/")
+def home():
+    """Root endpoint to avoid 404 error."""
+    return jsonify({"message": "Welcome to the ML Space API! Use the `/satellite-position` endpoint."})
 
 def fetch_tle(satellite_name):
     """Fetches TLE data from Celestrak for a specific satellite."""
@@ -28,27 +32,23 @@ def get_satellite_position(satellite_name):
     if not line1 or not line2:
         return None
 
-    satellite = Satrec.twoline2rv(line1, line2)
-    
-    # Load Skyfield time scale
     ts = load.timescale()
     t = ts.now()
+    jd, fr = t.tt_jd, t.tt_fraction
 
-    # Compute ECI coordinates
-    e, r, v = satellite.sgp4(t.utc.year, t.utc.days - int(t.utc.days))
-
+    satellite = Satrec.twoline2rv(line1, line2)
+    e, r, v = satellite.sgp4(jd, fr)
     if e != 0:
-        return None  # Error in SGP4 computation
+        return None  
 
-    # Convert to Latitude, Longitude, Altitude
-    x, y, z = r
-    satellite_position = wgs84.subpoint((x, y, z))
+    geocentric = wgs84.xyz(r[0], r[1], r[2])
+    subpoint = wgs84.subpoint(geocentric)
 
     return {
         "satellite": satellite_name,
-        "latitude": satellite_position.latitude.degrees,
-        "longitude": satellite_position.longitude.degrees,
-        "altitude_km": satellite_position.elevation.km
+        "latitude": subpoint.latitude.degrees,
+        "longitude": subpoint.longitude.degrees,
+        "altitude_km": subpoint.elevation.km
     }
 
 @app.route("/satellite-position", methods=["GET"])
