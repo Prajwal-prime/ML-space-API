@@ -34,7 +34,8 @@ def get_satellite_position(satellite_name):
 
     ts = load.timescale()
     t = ts.now()
-    jd, fr = t.tt_jd, t.tt_fraction
+    jd = t.tt
+
 
     satellite = Satrec.twoline2rv(line1, line2)
     e, r, v = satellite.sgp4(jd, fr)
